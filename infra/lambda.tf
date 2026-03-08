@@ -10,17 +10,16 @@
 #            public.ecr.aws/lambda/python:3.11 pip install scipy numpy -t /out/python
 # ═══════════════════════════════════════════════════════════════════════════════
 
-data "archive_file" "anomaly_layer" {
-  type        = "zip"
-  source_dir  = "${path.module}/../backend/layers/anomaly/python"
-  output_path = "${path.module}/../.archives/anomaly_layer.zip"
-}
-
 resource "aws_lambda_layer_version" "anomaly" {
   layer_name          = "${var.project_name}-anomaly-detection"
   description         = "scipy + numpy for EWMA + Z-score anomaly detection (Phase 2)"
-  filename            = data.archive_file.anomaly_layer.output_path
-  source_code_hash    = data.archive_file.anomaly_layer.output_base64sha256
+
+  # Layer zip is 61 MB — too large for Lambda direct-upload limit (50 MB).
+  # Upload to S3 first (see Phase 2 instructions), then reference via S3.
+  # Command: aws s3 cp .archives/anomaly_layer.zip s3://aiops-terraform-state-{ACCOUNT}/layers/anomaly_layer.zip
+  s3_bucket           = "aiops-terraform-state-${data.aws_caller_identity.current.account_id}"
+  s3_key              = "layers/anomaly_layer.zip"
+
   compatible_runtimes = ["python3.11"]
 }
 
