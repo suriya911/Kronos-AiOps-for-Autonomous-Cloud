@@ -3,6 +3,27 @@
 # Output path: ../.archives/  (gitignored, recreated on each terraform plan)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Lambda Layer — scipy + numpy for EWMA anomaly detection
+# Built by Docker BEFORE terraform apply (see Phase 2 instructions)
+# Command: docker run --rm -v "$(pwd)/backend/layers/anomaly":/out \
+#            public.ecr.aws/lambda/python:3.11 pip install scipy numpy -t /out/python
+# ═══════════════════════════════════════════════════════════════════════════════
+
+data "archive_file" "anomaly_layer" {
+  type        = "zip"
+  source_dir  = "${path.module}/../backend/layers/anomaly/python"
+  output_path = "${path.module}/../.archives/anomaly_layer.zip"
+}
+
+resource "aws_lambda_layer_version" "anomaly" {
+  layer_name          = "${var.project_name}-anomaly-detection"
+  description         = "scipy + numpy for EWMA + Z-score anomaly detection (Phase 2)"
+  filename            = data.archive_file.anomaly_layer.output_path
+  source_code_hash    = data.archive_file.anomaly_layer.output_base64sha256
+  compatible_runtimes = ["python3.11"]
+}
+
 data "archive_file" "anomaly_detector" {
   type        = "zip"
   source_dir  = "${path.module}/../backend/lambdas/anomaly_detector"
@@ -98,10 +119,13 @@ resource "aws_lambda_function" "anomaly_detector" {
   runtime          = "python3.11"
   role             = aws_iam_role.lambda_execution.arn
   timeout          = var.lambda_timeout
-  memory_size      = var.anomaly_lambda_memory_mb # 512 MB for scipy layer in Phase 2
+  memory_size      = var.anomaly_lambda_memory_mb # 512 MB for scipy layer
 
-  # Keep at least 1 warm to reduce cold-start detection latency
-  reserved_concurrent_executions = 5
+  # scipy + numpy layer (built via Docker before terraform apply)
+  layers = [aws_lambda_layer_version.anomaly.arn]
+
+  # reserved_concurrent_executions omitted — free-tier accounts require
+  # at least 10 unreserved executions to remain. Re-add in production.
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
