@@ -1,0 +1,16 @@
+{
+  "Comment": "AIOps Incident Response Workflow — Phase 1 placeholder. Real states added in Phase 3.",
+  "StartAt": "PlaceholderPass",
+  "States": {
+    "PlaceholderPass": {
+      "Type": "Pass",
+      "Comment": "Phase 3 replaces this with: Triage → Diagnose → GuardrailCheck → AutoRemediate/Escalate → UpdateLog",
+      "Result": {
+        "status": "PLACEHOLDER",
+        "phase": 1,
+        "message": "Real workflow implemented in Phase 3"
+      },
+      "End": true
+    }
+  }
+}

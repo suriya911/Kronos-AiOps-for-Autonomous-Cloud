@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 7%;
+    --foreground: 213 31% 95%;
+
+    --card: 224 43% 11%;
+    --card-foreground: 213 31% 95%;
+
+    --popover: 224 43% 11%;
+    --popover-foreground: 213 31% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 30% 20%;
+    --secondary-foreground: 213 31% 95%;
+
+    --muted: 220 20% 18%;
+    --muted-foreground: 218 11% 46%;
+
+    --accent: 220 30% 20%;
+    --accent-foreground: 213 31% 95%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --border: 218 43% 20%;
+    --input: 218 43% 20%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 224 43% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 30% 16%;
+    --sidebar-accent-foreground: 213 31% 95%;
+    --sidebar-border: 218 43% 20%;
+    --sidebar-ring: 217 91% 60%;
+
+    --chart-blue: 217 91% 60%;
+    --chart-green: 142 71% 45%;
+    --chart-amber: 38 92% 50%;
+    --chart-red: 0 72% 51%;
+    --chart-purple: 270 70% 60%;
+    --chart-teal: 173 80% 40%;
+    --chart-orange: 25 95% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .glow-blue {
+    box-shadow: 0 0 20px hsla(217, 91%, 60%, 0.15);
+  }
+
+  .glow-critical {
+    box-shadow: 0 0 20px hsla(0, 72%, 51%, 0.2);
+  }
+
+  .pulse-live {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  .pulse-status {
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+
+  .slide-in-row {
+    animation: slideInRow 0.3s ease-out;
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes slideInRow {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,25 @@
+# ─── AIOps Platform — Terraform Variables ─────────────────────────────────────
+# Copy this file: cp terraform.tfvars.example terraform.tfvars
+# Fill in your values, then run: terraform init && terraform plan
+
+# AWS region (free tier is per-region — stick to one)
+aws_region = "us-east-1"
+
+# Prefix for all resource names (keep short, lowercase, no spaces)
+project_name = "aiops"
+
+# Environment tag applied to all resources
+environment = "dev"
+
+# ── REQUIRED ──────────────────────────────────────────────────────────────────
+# Email for incident escalation alerts.
+# AWS will send a confirmation email — you MUST click the link before alerts work.
+sns_alert_email = "your-email@example.com"
+
+# ── OPTIONAL — defaults are fine for Phase 1 ──────────────────────────────────
+# lambda_timeout             = 30    # seconds
+# lambda_memory_mb           = 256   # MB (standard Lambdas)
+# anomaly_lambda_memory_mb   = 512   # MB (higher for scipy layer in Phase 2)
+# dynamodb_billing_mode      = "PAY_PER_REQUEST"
+# log_retention_days         = 7
+# cloudwatch_alarm_cpu_threshold = 80  # %
