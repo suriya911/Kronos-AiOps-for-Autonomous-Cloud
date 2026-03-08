@@ -352,7 +352,7 @@ def _detect_anomaly(
     threshold: float = 3.0,
 ) -> tuple[bool, float, float]:
     """
-    EWMA + rolling Z-score anomaly detection.
+    EWMA + residual Z-score anomaly detection.
 
     Args:
         values:    Time-ordered metric data points (oldest → newest).
@@ -361,35 +361,46 @@ def _detect_anomaly(
 
     Returns:
         (is_anomaly, z_score, ewma_value)
+
+    Algorithm:
+        1. Compute EWMA over all points.
+        2. Build residuals = [actual[i] - ewma[i]] for the BASELINE
+           (every point except the latest). This captures how much values
+           normally deviate from the trend — without the spike contaminating
+           either the centre or the spread.
+        3. Z-score = (latest - ewma_before_latest) / std(residuals).
+           "ewma_before_latest" (ewma[-2]) is the prediction the EWMA made
+           BEFORE seeing the current value — the cleanest anomaly signal.
+        4. When the baseline is perfectly flat (residual_std → 0), the epsilon
+           makes any real spike produce an astronomically large Z-score.
     """
     if len(values) < 2:
         return False, 0.0, values[0] if values else 0.0
 
-    # 1. EWMA
+    # 1. EWMA over all values
     ewma = [values[0]]
     for v in values[1:]:
         ewma.append(alpha * v + (1.0 - alpha) * ewma[-1])
 
-    # 2. Rolling standard deviation (window = 10, minimum 2 points)
-    window_size = 10
-    stds: list[float] = []
-    for i in range(len(values)):
-        window = values[max(0, i - window_size + 1): i + 1]
-        if len(window) >= 2:
-            stds.append(statistics.stdev(window))
-        else:
-            stds.append(1.0)   # avoid division by zero on first sample
+    # 2. Residuals on the baseline (all points EXCEPT the latest)
+    #    residual[i] = how far actual[i] was from ewma[i] — normal noise
+    residuals = [values[i] - ewma[i] for i in range(len(values) - 1)]
 
-    # 3. Z-score on the LATEST data point
-    latest_val  = values[-1]
-    latest_ewma = ewma[-1]
-    latest_std  = stds[-1]
+    if len(residuals) >= 2:
+        residual_std = statistics.stdev(residuals)
+    else:
+        residual_std = 1.0
 
-    z_score = (latest_val - latest_ewma) / (latest_std + 1e-8)
+    # 3. Z-score: latest value vs the EWMA *before* the latest update
+    #    ewma[-2] is the "prediction" the model had before seeing the spike
+    latest_val      = values[-1]
+    ewma_prediction = ewma[-2]   # EWMA state before the current data point
+
+    z_score = (latest_val - ewma_prediction) / (residual_std + 1e-8)
 
     is_anomaly = abs(z_score) > threshold
 
-    return is_anomaly, round(z_score, 4), round(latest_ewma, 4)
+    return is_anomaly, round(z_score, 4), round(ewma[-1], 4)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
