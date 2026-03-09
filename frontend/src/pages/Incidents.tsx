@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { mockIncidents, getMockIncidentDetail } from '@/lib/mock-data';
+import { api } from '@/lib/api';
+import { useIncidents } from '@/hooks/use-incidents';
 import { IncidentTable } from '@/components/incidents/IncidentTable';
 import { IncidentDrawer } from '@/components/incidents/IncidentDrawer';
 import type { Incident } from '@/lib/types';
@@ -9,27 +10,40 @@ import type { Incident } from '@/lib/types';
 const ITEMS_PER_PAGE = 25;
 
 const IncidentsPage = () => {
-  const { incidents, setIncidents, statusFilter, typeFilter, searchQuery, setStatusFilter, setTypeFilter, setSearchQuery, selectedIncident, isDrawerOpen, openDrawer, closeDrawer } = useStore();
+  const { statusFilter, typeFilter, searchQuery, setStatusFilter, setTypeFilter, setSearchQuery, selectedIncident, isDrawerOpen, openDrawer, closeDrawer } = useStore();
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    if (incidents.length === 0) setIncidents(mockIncidents);
-  }, []);
+  // Pass statusFilter to the API for server-side filtering; type + search are client-side
+  const { data: incidentsData, isLoading } = useIncidents(statusFilter !== 'ALL' ? statusFilter : undefined);
+  const incidents = incidentsData?.incidents ?? [];
 
   const filtered = useMemo(() => {
     return incidents.filter((inc) => {
-      if (statusFilter !== 'ALL' && inc.status !== statusFilter) return false;
       if (typeFilter !== 'ALL' && inc.type !== typeFilter) return false;
       if (searchQuery && !inc.incidentId.includes(searchQuery) && !inc.type.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [incidents, statusFilter, typeFilter, searchQuery]);
+  }, [incidents, typeFilter, searchQuery]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  const handleRowClick = (inc: Incident) => {
-    openDrawer(getMockIncidentDetail(inc.incidentId));
+  const handleRowClick = async (inc: Incident) => {
+    try {
+      const detail = await api.getIncident(inc.incidentId);
+      openDrawer(detail);
+    } catch (err) {
+      console.error('[Incidents] Failed to load incident detail:', err);
+      openDrawer({
+        ...inc,
+        resourceId:    '',
+        ewmaValue:     0,
+        metricHistory: [],
+        rootCause:     'Detail unavailable — check CloudWatch logs.',
+        diagnosis:     { topErrors: [], logInsightsQuery: '' },
+        timeline:      [],
+      });
+    }
   };
 
   return (
@@ -72,7 +86,13 @@ const IncidentsPage = () => {
         </select>
       </div>
 
-      <IncidentTable incidents={paginated} onRowClick={handleRowClick} />
+      {isLoading ? (
+        <div className="flex items-center justify-center h-40 rounded-xl border border-border bg-card text-muted-foreground text-sm">
+          Loading incidents…
+        </div>
+      ) : (
+        <IncidentTable incidents={paginated} onRowClick={handleRowClick} />
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

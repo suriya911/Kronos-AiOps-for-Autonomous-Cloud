@@ -1,26 +1,65 @@
-import { useState } from 'react';
-import { mockGuardrails } from '@/lib/mock-data';
+import { useState, useEffect } from 'react';
 import type { GuardrailConfig } from '@/lib/types';
 import { toast } from 'sonner';
+import { useSettings, useUpdateGuardrails, useUpdateThresholds } from '@/hooks/use-settings';
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'guardrails' | 'thresholds' | 'notifications'>('guardrails');
-  const [guardrails, setGuardrails] = useState<GuardrailConfig[]>(mockGuardrails);
-  const [zScore, setZScore] = useState(3.0);
-  const [ewmaAlpha, setEwmaAlpha] = useState(0.3);
+  const [guardrails, setGuardrails]       = useState<GuardrailConfig[]>([]);
+  const [zScore, setZScore]               = useState(3.0);
+  const [ewmaAlpha, setEwmaAlpha]         = useState(0.3);
   const [minDataPoints, setMinDataPoints] = useState(60);
-  const [email, setEmail] = useState('ops-team@company.com');
-  const [slack, setSlack] = useState('');
+  const [email, setEmail]                 = useState('ops-team@company.com');
+  const [slack, setSlack]                 = useState('');
+
+  // Fetch settings from SSM via React Query
+  const { data: settings, isLoading } = useSettings();
+  const updateGuardrails  = useUpdateGuardrails();
+  const updateThresholds  = useUpdateThresholds();
+
+  // Sync local state whenever server data arrives
+  useEffect(() => {
+    if (!settings) return;
+    setGuardrails(settings.guardrails);
+    setZScore(settings.thresholds.zScoreThreshold);
+    setEwmaAlpha(settings.thresholds.ewmaAlpha);
+    setMinDataPoints(settings.thresholds.minDataPoints);
+  }, [settings]);
 
   const tabs = [
-    { id: 'guardrails' as const, label: 'Guardrails' },
-    { id: 'thresholds' as const, label: 'Thresholds' },
+    { id: 'guardrails'    as const, label: 'Guardrails' },
+    { id: 'thresholds'    as const, label: 'Thresholds' },
     { id: 'notifications' as const, label: 'Notifications' },
   ];
 
   const toggleGuardrail = (type: string) => {
     setGuardrails((g) => g.map((r) => r.type === type ? { ...r, autoRemediate: !r.autoRemediate } : r));
   };
+
+  const saveGuardrails = () => {
+    updateGuardrails.mutate(guardrails, {
+      onSuccess: () => toast.success('Guardrails saved to SSM'),
+      onError:   () => toast.error('Failed to save guardrails'),
+    });
+  };
+
+  const saveThresholds = () => {
+    updateThresholds.mutate(
+      { zScoreThreshold: zScore, ewmaAlpha, minDataPoints },
+      {
+        onSuccess: () => toast.success('Thresholds saved to SSM'),
+        onError:   () => toast.error('Failed to save thresholds'),
+      },
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+        Loading settings…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -77,10 +116,11 @@ const SettingsPage = () => {
           </table>
           <div className="mt-4 flex justify-end">
             <button
-              onClick={() => toast.success('Guardrails saved')}
-              className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90"
+              onClick={saveGuardrails}
+              disabled={updateGuardrails.isPending}
+              className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
             >
-              Save Changes
+              {updateGuardrails.isPending ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -108,10 +148,11 @@ const SettingsPage = () => {
           </div>
           <div className="flex justify-end">
             <button
-              onClick={() => toast.success('Thresholds saved')}
-              className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90"
+              onClick={saveThresholds}
+              disabled={updateThresholds.isPending}
+              className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"
             >
-              Save Changes
+              {updateThresholds.isPending ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>

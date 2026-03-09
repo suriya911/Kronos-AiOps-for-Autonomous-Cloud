@@ -1,0 +1,46 @@
+{
+  "version": "0",
+  "id": "abc12345-0000-0000-0000-000000000002",
+  "source": "aws.cloudwatch",
+  "account": "807430513014",
+  "time": "2024-01-15T10:05:00Z",
+  "region": "us-east-1",
+  "detail-type": "CloudWatch Alarm State Change",
+  "detail": {
+    "alarmName": "aiops-high-cpu-utilization",
+    "alarmArn": "arn:aws:cloudwatch:us-east-1:807430513014:alarm:aiops-high-cpu-utilization",
+    "awsAccountId": "807430513014",
+    "alarmDescription": "CPU utilisation > 80% for 5 consecutive minutes",
+    "state": {
+      "value": "ALARM",
+      "reason": "Threshold Crossed: 1 datapoint [48.1] was greater than the threshold (80.0).",
+      "reasonData": "{\"version\":\"1.0\",\"queryDate\":\"2024-01-15T10:05:00.000+0000\",\"startDate\":\"2024-01-15T10:00:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[48.1],\"threshold\":80.0}",
+      "timestamp": "2024-01-15T10:05:00.000+0000"
+    },
+    "previousState": {
+      "value": "OK",
+      "reason": "Threshold Crossed",
+      "timestamp": "2024-01-15T09:55:00.000+0000"
+    },
+    "configuration": {
+      "description": "CPU utilisation — stable baseline test",
+      "metrics": [
+        {
+          "id": "m1",
+          "metricStat": {
+            "metric": {
+              "namespace": "AWS/EC2",
+              "name": "CPUUtilization",
+              "dimensions": [
+                { "name": "InstanceId", "value": "i-0123456789abcdef0" }
+              ]
+            },
+            "period": 300,
+            "stat": "Average"
+          },
+          "returnData": true
+        }
+      ]
+    }
+  }
+}

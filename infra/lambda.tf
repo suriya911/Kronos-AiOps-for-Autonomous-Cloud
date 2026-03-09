@@ -3,6 +3,26 @@
 # Output path: ../.archives/  (gitignored, recreated on each terraform plan)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Lambda Layer — scipy + numpy for EWMA anomaly detection
+# Built by Docker BEFORE terraform apply (see Phase 2 instructions)
+# Command: docker run --rm -v "$(pwd)/backend/layers/anomaly":/out \
+#            public.ecr.aws/lambda/python:3.11 pip install scipy numpy -t /out/python
+# ═══════════════════════════════════════════════════════════════════════════════
+
+resource "aws_lambda_layer_version" "anomaly" {
+  layer_name          = "${var.project_name}-anomaly-detection"
+  description         = "scipy + numpy for EWMA + Z-score anomaly detection (Phase 2)"
+
+  # Layer zip is 61 MB — too large for Lambda direct-upload limit (50 MB).
+  # Upload to S3 first (see Phase 2 instructions), then reference via S3.
+  # Command: aws s3 cp .archives/anomaly_layer.zip s3://aiops-terraform-state-{ACCOUNT}/layers/anomaly_layer.zip
+  s3_bucket           = "aiops-terraform-state-${data.aws_caller_identity.current.account_id}"
+  s3_key              = "layers/anomaly_layer.zip"
+
+  compatible_runtimes = ["python3.11"]
+}
+
 data "archive_file" "anomaly_detector" {
   type        = "zip"
   source_dir  = "${path.module}/../backend/lambdas/anomaly_detector"
@@ -98,10 +118,13 @@ resource "aws_lambda_function" "anomaly_detector" {
   runtime          = "python3.11"
   role             = aws_iam_role.lambda_execution.arn
   timeout          = var.lambda_timeout
-  memory_size      = var.anomaly_lambda_memory_mb # 512 MB for scipy layer in Phase 2
+  memory_size      = var.anomaly_lambda_memory_mb # 512 MB for scipy layer
 
-  # Keep at least 1 warm to reduce cold-start detection latency
-  reserved_concurrent_executions = 5
+  # scipy + numpy layer (built via Docker before terraform apply)
+  layers = [aws_lambda_layer_version.anomaly.arn]
+
+  # reserved_concurrent_executions omitted — free-tier accounts require
+  # at least 10 unreserved executions to remain. Re-add in production.
 
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
@@ -304,6 +327,51 @@ resource "aws_lambda_permission" "apigateway_ws_broadcast" {
   function_name = aws_lambda_function.ws_broadcast.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.websocket.execution_arn}/*/*"
+}
+
+# ─── 7. api_handler ───────────────────────────────────────────────────────────
+# HTTP REST API for the frontend — incidents, KPI, metrics, settings.
+# Deployed in Phase 5; sits behind aws_apigatewayv2_api.http (http_api.tf).
+
+data "archive_file" "api_handler" {
+  type        = "zip"
+  source_dir  = "${path.module}/../backend/lambdas/api_handler"
+  output_path = "${path.module}/../.archives/api_handler.zip"
+}
+
+resource "aws_cloudwatch_log_group" "lambda_api_handler" {
+  name              = "/aws/lambda/${var.project_name}-api-handler"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "api_handler" {
+  function_name    = "${var.project_name}-api-handler"
+  description      = "HTTP API for AIOps frontend — incidents, KPI, metrics, remediations, settings"
+  filename         = data.archive_file.api_handler.output_path
+  source_code_hash = data.archive_file.api_handler.output_base64sha256
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_execution.arn   # existing role has all needed perms
+  timeout          = 30
+  memory_size      = var.lambda_memory_mb
+
+  environment {
+    variables = {
+      INCIDENTS_TABLE      = aws_dynamodb_table.incidents.name
+      REMEDIATIONS_TABLE   = aws_dynamodb_table.remediations.name
+      METRICS_CACHE_TABLE  = aws_dynamodb_table.metrics_cache.name
+      SSM_GUARDRAILS_PARAM = aws_ssm_parameter.guardrails.name
+      SSM_THRESHOLDS_PARAM = aws_ssm_parameter.thresholds.name
+      ENVIRONMENT          = var.environment
+      LOG_LEVEL            = "INFO"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_api_handler,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_permissions,
+  ]
 }
 
 # ─── DynamoDB Stream → ws_broadcast (Phase 4 trigger) ────────────────────────

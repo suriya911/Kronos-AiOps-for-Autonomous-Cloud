@@ -61,8 +61,8 @@ resource "aws_apigatewayv2_stage" "websocket" {
   auto_deploy = true
 
   default_route_settings {
-    logging_level          = "INFO"
-    data_trace_enabled     = true
+    # logging_level and data_trace_enabled require a CloudWatch Logs role ARN
+    # set at the API Gateway account level — skipped for free-tier dev.
     throttling_burst_limit = 100
     throttling_rate_limit  = 50
   }

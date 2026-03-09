@@ -1,16 +1,103 @@
 {
-  "Comment": "AIOps Incident Response Workflow — Phase 1 placeholder. Real states added in Phase 3.",
-  "StartAt": "PlaceholderPass",
+  "Comment": "AIOps Incident Response Workflow — Phase 3. Triage → Diagnose → GuardrailCheck → AutoRemediate/Escalate → WorkflowComplete",
+  "StartAt": "Diagnose",
   "States": {
-    "PlaceholderPass": {
+
+    "Diagnose": {
+      "Type": "Task",
+      "Comment": "Query CloudWatch Logs Insights for root cause. Stores result in $.diagnosis.",
+      "Resource": "${diagnose_arn}",
+      "ResultPath": "$.diagnosis",
+      "TimeoutSeconds": 60,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Comment": "Diagnosis failed — escalate with partial data",
+          "Next": "Escalate",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "GuardrailCheck"
+    },
+
+    "GuardrailCheck": {
+      "Type": "Choice",
+      "Comment": "Auto-remediation allowed for CPU/MEMORY/DISK. LATENCY and UNKNOWN require human review.",
+      "Choices": [
+        {
+          "Variable": "$.type",
+          "StringEquals": "CPU",
+          "Next": "AutoRemediate"
+        },
+        {
+          "Variable": "$.type",
+          "StringEquals": "MEMORY",
+          "Next": "AutoRemediate"
+        },
+        {
+          "Variable": "$.type",
+          "StringEquals": "DISK",
+          "Next": "AutoRemediate"
+        }
+      ],
+      "Default": "Escalate"
+    },
+
+    "AutoRemediate": {
+      "Type": "Task",
+      "Comment": "Run SSM command for this incident type. Idempotency check prevents duplicate runs.",
+      "Resource": "${remediate_arn}",
+      "ResultPath": "$.remediation",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 1,
+          "BackoffRate": 1.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Comment": "Remediation failed — escalate to human",
+          "Next": "Escalate",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "WorkflowComplete"
+    },
+
+    "Escalate": {
+      "Type": "Task",
+      "Comment": "Publish SNS alert. Called when guardrail blocks auto-remediation OR any prior state fails.",
+      "Resource": "${escalate_arn}",
+      "ResultPath": "$.escalation",
+      "TimeoutSeconds": 30,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Next": "WorkflowComplete"
+    },
+
+    "WorkflowComplete": {
       "Type": "Pass",
-      "Comment": "Phase 3 replaces this with: Triage → Diagnose → GuardrailCheck → AutoRemediate/Escalate → UpdateLog",
-      "Result": {
-        "status": "PLACEHOLDER",
-        "phase": 1,
-        "message": "Real workflow implemented in Phase 3"
-      },
+      "Comment": "Terminal state. Full context (incident + diagnosis + remediation/escalation) is in the execution history.",
       "End": true
     }
+
   }
 }
