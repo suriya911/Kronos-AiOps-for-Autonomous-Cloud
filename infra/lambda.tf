@@ -329,6 +329,51 @@ resource "aws_lambda_permission" "apigateway_ws_broadcast" {
   source_arn    = "${aws_apigatewayv2_api.websocket.execution_arn}/*/*"
 }
 
+# ─── 7. api_handler ───────────────────────────────────────────────────────────
+# HTTP REST API for the frontend — incidents, KPI, metrics, settings.
+# Deployed in Phase 5; sits behind aws_apigatewayv2_api.http (http_api.tf).
+
+data "archive_file" "api_handler" {
+  type        = "zip"
+  source_dir  = "${path.module}/../backend/lambdas/api_handler"
+  output_path = "${path.module}/../.archives/api_handler.zip"
+}
+
+resource "aws_cloudwatch_log_group" "lambda_api_handler" {
+  name              = "/aws/lambda/${var.project_name}-api-handler"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "api_handler" {
+  function_name    = "${var.project_name}-api-handler"
+  description      = "HTTP API for AIOps frontend — incidents, KPI, metrics, remediations, settings"
+  filename         = data.archive_file.api_handler.output_path
+  source_code_hash = data.archive_file.api_handler.output_base64sha256
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_execution.arn   # existing role has all needed perms
+  timeout          = 30
+  memory_size      = var.lambda_memory_mb
+
+  environment {
+    variables = {
+      INCIDENTS_TABLE      = aws_dynamodb_table.incidents.name
+      REMEDIATIONS_TABLE   = aws_dynamodb_table.remediations.name
+      METRICS_CACHE_TABLE  = aws_dynamodb_table.metrics_cache.name
+      SSM_GUARDRAILS_PARAM = aws_ssm_parameter.guardrails.name
+      SSM_THRESHOLDS_PARAM = aws_ssm_parameter.thresholds.name
+      ENVIRONMENT          = var.environment
+      LOG_LEVEL            = "INFO"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_api_handler,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_permissions,
+  ]
+}
+
 # ─── DynamoDB Stream → ws_broadcast (Phase 4 trigger) ────────────────────────
 # Wires the DynamoDB incidents stream to the ws_broadcast Lambda.
 # In Phase 4, this is what drives real-time WebSocket pushes.

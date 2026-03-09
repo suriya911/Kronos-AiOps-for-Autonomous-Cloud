@@ -19,6 +19,7 @@ import type {
   RemediationAction,
   RemediationStatus,
 } from './types';
+import { getAccessToken } from './auth';
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 
@@ -42,10 +43,15 @@ const STATUS_MAP: Record<string, Incident['status']> = {
 // ─── Fetch wrapper ────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const url  = `${API_BASE}${path}`;
-  const res  = await fetch(url, {
+  const url   = `${API_BASE}${path}`;
+  const token = getAccessToken();
+  const res   = await fetch(url, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers ?? {}),
+    },
   });
 
   if (!res.ok) {
