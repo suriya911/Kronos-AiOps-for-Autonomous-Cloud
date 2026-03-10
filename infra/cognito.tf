@@ -91,17 +91,26 @@ resource "aws_cognito_user_pool_client" "spa" {
     refresh_token = "days"
   }
 
-  # Allowed redirect URLs (add Vercel URL here once deployed)
+  # Allowed redirect URLs — must include every origin the SPA is served from.
+  # Trailing-slash and bare variants are both listed because browsers differ.
   callback_urls = [
+    "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:8081",
-    "https://kronos-aiops.vercel.app",
+    "http://localhost:8082",
+    "http://localhost:8083",
+    "https://kronos-ai-ops-for-autonomous-cloud.vercel.app",
+    "https://kronos-ai-ops-for-autonomous-cloud.vercel.app/",
   ]
 
   logout_urls = [
+    "http://localhost:5173",
     "http://localhost:8080",
     "http://localhost:8081",
-    "https://kronos-aiops.vercel.app",
+    "http://localhost:8082",
+    "http://localhost:8083",
+    "https://kronos-ai-ops-for-autonomous-cloud.vercel.app",
+    "https://kronos-ai-ops-for-autonomous-cloud.vercel.app/",
   ]
 
   # Prevent implicit flow — PKCE code flow only
