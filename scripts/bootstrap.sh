@@ -88,8 +88,12 @@ echo "[3/4] Patching infra/main.tf..."
 
 MAIN_TF="${ROOT_DIR}/infra/main.tf"
 if grep -q "YOUR_ACCOUNT_ID" "${MAIN_TF}"; then
-  # macOS-compatible sed (BSD sed requires empty string after -i)
-  sed -i '' "s/aiops-terraform-state-YOUR_ACCOUNT_ID/${BUCKET_NAME}/" "${MAIN_TF}"
+  # Cross-platform sed: GNU sed (Linux/WSL/Git Bash) uses -i, BSD sed (macOS) needs -i ''
+  if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "s/aiops-terraform-state-YOUR_ACCOUNT_ID/${BUCKET_NAME}/" "${MAIN_TF}"
+  else
+    sed -i '' "s/aiops-terraform-state-YOUR_ACCOUNT_ID/${BUCKET_NAME}/" "${MAIN_TF}"
+  fi
   echo "  ✓ Updated bucket name in main.tf → ${BUCKET_NAME}"
 else
   echo "  ✓ main.tf already patched (bucket name found)"

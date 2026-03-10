@@ -10,7 +10,13 @@ resource "aws_sfn_state_machine" "incident_workflow" {
   name     = "${var.project_name}-incident-workflow"
   role_arn = aws_iam_role.stepfunctions_execution.arn
 
-  definition = file("${path.module}/../backend/state_machines/incident_workflow.asl.json")
+  # Phase 3: templatefile() injects Lambda ARNs into the ASL so we avoid
+  # hard-coding account IDs or region strings inside the JSON file.
+  definition = templatefile("${path.module}/../backend/state_machines/incident_workflow.asl.json", {
+    diagnose_arn  = aws_lambda_function.diagnose.arn
+    remediate_arn = aws_lambda_function.remediate.arn
+    escalate_arn  = aws_lambda_function.escalate.arn
+  })
 
   logging_configuration {
     log_destination        = "${aws_cloudwatch_log_group.stepfunctions.arn}:*"

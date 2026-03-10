@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.5"
 
   required_providers {
     aws = {
@@ -18,7 +18,7 @@ terraform {
   #   2. Or manually: replace YOUR_ACCOUNT_ID with your 12-digit AWS account ID
   # ─────────────────────────────────────────────────────────────────────────────
   backend "s3" {
-    bucket         = "aiops-terraform-state-YOUR_ACCOUNT_ID"
+    bucket         = "aiops-terraform-state-807430513014"
     key            = "aiops/dev/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "aiops-tf-lock"

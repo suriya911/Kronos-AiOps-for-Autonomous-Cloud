@@ -1,0 +1,36 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Typecheck & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript check
+        run: bun run tsc --noEmit
+
+      - name: Vite build
+        run: bun run build
+        env:
+          VITE_API_BASE_URL:         ${{ secrets.VITE_API_BASE_URL }}
+          VITE_WS_URL:               ${{ secrets.VITE_WS_URL }}
+          VITE_USE_MOCK:             "false"
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID:    ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_DOMAIN:       ${{ secrets.VITE_COGNITO_DOMAIN }}
