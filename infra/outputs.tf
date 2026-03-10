@@ -78,23 +78,7 @@ output "aws_account_id" {
   value       = data.aws_caller_identity.current.account_id
 }
 
-# ─── Cognito (Phase 6) ────────────────────────────────────────────────────────
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID — set as VITE_COGNITO_USER_POOL_ID in Vercel env vars"
-  value       = aws_cognito_user_pool.main.id
-}
-
-output "cognito_client_id" {
-  description = "Cognito App Client ID — set as VITE_COGNITO_CLIENT_ID in Vercel env vars"
-  value       = aws_cognito_user_pool_client.spa.id
-}
-
-output "cognito_hosted_ui_domain" {
-  description = "Cognito Hosted UI base URL — set as VITE_COGNITO_DOMAIN in Vercel env vars"
-  value       = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
-}
-
-# ─── CloudWatch Dashboard (Phase 6) ───────────────────────────────────────────
+# ─── CloudWatch Dashboard ─────────────────────────────────────────────────────
 output "cloudwatch_dashboard_url" {
   description = "Direct link to the Kronos ops dashboard in CloudWatch console"
   value       = "https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${var.project_name}-ops"

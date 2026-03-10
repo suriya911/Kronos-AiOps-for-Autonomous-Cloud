@@ -220,7 +220,6 @@ resource "aws_cloudwatch_dashboard" "ops" {
 
             **Resources**
             - DynamoDB: `${aws_dynamodb_table.incidents.name}`
-            - Cognito Pool: `${aws_cognito_user_pool.main.id}`
           MD
         }
       },

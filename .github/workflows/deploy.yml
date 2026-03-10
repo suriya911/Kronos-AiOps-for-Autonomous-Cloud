@@ -35,9 +35,6 @@ jobs:
           AWS_DEFAULT_REGION:    us-east-1
 
   # ── Job 2: Deploy frontend to Vercel ────────────────────────────────────────
-  # NOTE: If you use Vercel's GitHub integration (auto-deploy on push),
-  # you can delete this job — Vercel will deploy automatically.
-  # Keep this job only if you prefer explicit CLI control over deployments.
   vercel:
     name: Vercel Deploy
     runs-on: ubuntu-latest
@@ -59,12 +56,9 @@ jobs:
       - name: Build
         run: bun run build
         env:
-          VITE_API_BASE_URL:         ${{ secrets.VITE_API_BASE_URL }}
-          VITE_WS_URL:               ${{ secrets.VITE_WS_URL }}
-          VITE_USE_MOCK:             "false"
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID:    ${{ secrets.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_DOMAIN:       ${{ secrets.VITE_COGNITO_DOMAIN }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_WS_URL:       ${{ secrets.VITE_WS_URL }}
+          VITE_USE_MOCK:     "false"
 
       - name: Deploy to Vercel
         run: npx vercel --prod --token "${{ secrets.VERCEL_TOKEN }}"
