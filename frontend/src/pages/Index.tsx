@@ -5,6 +5,7 @@ import { useKPI } from '@/hooks/use-kpi';
 import { KPICards } from '@/components/dashboard/KPICards';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
 import { SystemHealthPanel } from '@/components/dashboard/SystemHealthPanel';
+import { DemoTrigger } from '@/components/dashboard/DemoTrigger';
 import { IncidentTable } from '@/components/incidents/IncidentTable';
 import { IncidentDrawer } from '@/components/incidents/IncidentDrawer';
 import type { Incident } from '@/lib/types';
@@ -40,6 +41,10 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+        <DemoTrigger />
+      </div>
       {kpi && <KPICards kpi={kpi} />}
       <ActivityChart />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
