@@ -8,8 +8,10 @@ import { api } from '@/lib/api';
  */
 export function useKPI() {
   return useQuery({
-    queryKey:  ['kpi'],
-    queryFn:   api.getKPI,
-    staleTime: 60_000,
+    queryKey:             ['kpi'],
+    queryFn:              api.getKPI,
+    staleTime:            10_000,
+    refetchInterval:      10_000,
+    refetchOnWindowFocus: true,
   });
 }

@@ -1,6 +1,16 @@
 import { formatDistanceToNow } from 'date-fns';
+import { AlertTriangle } from 'lucide-react';
 import type { Incident } from '@/lib/types';
 import { StatusBadge, MethodBadge } from '@/components/incidents/IncidentBadges';
+
+function ActionRequiredBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-destructive/15 text-destructive border border-destructive/30 animate-pulse">
+      <AlertTriangle className="h-3 w-3" />
+      Action Required
+    </span>
+  );
+}
 
 interface IncidentTableProps {
   incidents: Incident[];
@@ -31,14 +41,19 @@ export function IncidentTable({ incidents, onRowClick, compact }: IncidentTableP
             </tr>
           </thead>
           <tbody>
-            {items.map((inc) => (
+            {items.map((inc) => {
+              const needsAction = inc.severity === 'CRITICAL' && (inc.status === 'OPEN' || inc.status === 'ESCALATED');
+              return (
               <tr
                 key={inc.incidentId}
                 onClick={() => onRowClick(inc)}
-                className="border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors slide-in-row"
+                className={`border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors slide-in-row ${needsAction ? 'bg-destructive/5' : ''}`}
               >
                 <td className="px-4 py-3">
-                  <StatusBadge status={inc.status} />
+                  <div className="flex flex-col gap-1">
+                    <StatusBadge status={inc.status} />
+                    {needsAction && <ActionRequiredBadge />}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 rounded text-xs font-medium bg-accent text-foreground">
@@ -62,7 +77,8 @@ export function IncidentTable({ incidents, onRowClick, compact }: IncidentTableP
                   <MethodBadge method={inc.method} />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

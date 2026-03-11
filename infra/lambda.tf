@@ -417,11 +417,11 @@ resource "aws_lambda_function" "incident_generator" {
   ]
 }
 
-# EventBridge rule — fires every 3 days
+# EventBridge rule — fires every day at 08:00 UTC
 resource "aws_cloudwatch_event_rule" "incident_generator" {
   name                = "${var.project_name}-incident-generator"
-  description         = "Triggers incident_generator Lambda every 3 days"
-  schedule_expression = "rate(3 days)"
+  description         = "Triggers incident_generator Lambda daily to populate fresh incidents"
+  schedule_expression = "cron(0 8 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "incident_generator" {

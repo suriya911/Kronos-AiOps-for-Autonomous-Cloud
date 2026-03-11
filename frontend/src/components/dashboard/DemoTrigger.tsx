@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Zap, ChevronDown, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,6 +35,7 @@ const SEVERITIES = [
 type TriggerState = 'idle' | 'loading' | 'success' | 'error';
 
 export function DemoTrigger() {
+  const queryClient             = useQueryClient();
   const [open, setOpen]         = useState(false);
   const [type, setType]         = useState('CPU');
   const [severity, setSeverity] = useState('CRITICAL');
@@ -50,6 +52,17 @@ export function DemoTrigger() {
       const result = await api.triggerDemo(type, severity);
       setState('success');
       setMessage(result.message);
+      // Immediately refresh incident list and KPIs, then again after 8s and 20s
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['incidents'] });
+        queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      }, 8_000);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['incidents'] });
+        queryClient.invalidateQueries({ queryKey: ['kpi'] });
+      }, 20_000);
     } catch (err) {
       setState('error');
       setMessage(err instanceof Error ? err.message : 'Failed to trigger demo incident.');

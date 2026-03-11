@@ -7,10 +7,11 @@ import { api } from '@/lib/api';
  */
 export function useIncidents(statusFilter?: string) {
   return useQuery({
-    queryKey:        ['incidents', statusFilter ?? 'ALL'],
-    queryFn:         () => api.getIncidents(statusFilter),
-    staleTime:       30_000,
-    refetchInterval: 30_000,
+    queryKey:             ['incidents', statusFilter ?? 'ALL'],
+    queryFn:              () => api.getIncidents(statusFilter),
+    staleTime:            10_000,
+    refetchInterval:      10_000,
+    refetchOnWindowFocus: true,
   });
 }
 
