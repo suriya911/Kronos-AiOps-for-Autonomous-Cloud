@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
+import { Info } from 'lucide-react';
 import { useMetrics } from '@/hooks/use-metrics';
 
 const ranges = ['1h', '6h', '24h', '7d', '30d'] as const;
@@ -15,8 +16,21 @@ const MetricsPage = () => {
   const [range, setRange] = useState<string>('1h');
   const { data, isLoading } = useMetrics(range);
 
+  // Check if any metric has isSimulated flag (backend sets it when CW has no data)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isSimulated = data && (data as any).cpu?.isSimulated === true;
+
   return (
     <div className="space-y-6">
+      {isSimulated && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <span>
+            <span className="font-medium text-foreground">Simulated data</span> — No active EC2 instances are emitting
+            CloudWatch metrics. Charts show representative demo data. Connect real infrastructure to see live telemetry.
+          </span>
+        </div>
+      )}
       <div className="flex justify-end gap-1">
         {ranges.map((r) => (
           <button
@@ -84,9 +98,8 @@ const MetricsPage = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="flex items-center justify-center h-64 text-muted-foreground text-xs">
-                    No metric data available for this range.<br />
-                    CloudWatch requires active EC2 instances to emit data.
+                  <div className="flex items-center justify-center h-64 text-muted-foreground text-xs text-center">
+                    No data available for this range.
                   </div>
                 )}
               </div>

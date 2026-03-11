@@ -211,6 +211,14 @@ export const api = {
     });
   },
 
+  async resolveIncident(id: string, notes?: string): Promise<{ resolved: boolean; resolvedAt: string }> {
+    if (USE_MOCK) return { resolved: true, resolvedAt: new Date().toISOString() };
+    return apiFetch(`/incidents/${id}`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ notes: notes ?? '' }),
+    });
+  },
+
   async triggerDemo(type: string, severity: string): Promise<{ triggered: boolean; message: string; alarmName: string }> {
     if (USE_MOCK) {
       return {

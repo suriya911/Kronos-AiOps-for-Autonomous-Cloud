@@ -2,6 +2,7 @@ import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { useIncidents } from '@/hooks/use-incidents';
 import { useKPI } from '@/hooks/use-kpi';
+import { useQueryClient } from '@tanstack/react-query';
 import { KPICards } from '@/components/dashboard/KPICards';
 import { ActivityChart } from '@/components/dashboard/ActivityChart';
 import { SystemHealthPanel } from '@/components/dashboard/SystemHealthPanel';
@@ -12,6 +13,7 @@ import type { Incident } from '@/lib/types';
 
 const Dashboard = () => {
   const { selectedIncident, isDrawerOpen, openDrawer, closeDrawer } = useStore();
+  const queryClient = useQueryClient();
 
   // Real data via React Query — auto-refetches every 30 s + on WebSocket events
   const { data: incidentsData, isLoading: incidentsLoading } = useIncidents();
@@ -58,7 +60,12 @@ const Dashboard = () => {
         <SystemHealthPanel />
       </div>
       {selectedIncident && (
-        <IncidentDrawer incident={selectedIncident} open={isDrawerOpen} onClose={closeDrawer} />
+        <IncidentDrawer
+          incident={selectedIncident}
+          open={isDrawerOpen}
+          onClose={closeDrawer}
+          onResolved={() => queryClient.invalidateQueries({ queryKey: ['incidents'] })}
+        />
       )}
     </div>
   );

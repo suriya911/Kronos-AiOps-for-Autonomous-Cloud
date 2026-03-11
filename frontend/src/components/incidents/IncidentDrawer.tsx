@@ -1,25 +1,45 @@
-import { X } from 'lucide-react';
+import { X, CheckCircle2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type { IncidentDetail } from '@/lib/types';
 import { StatusBadge } from './IncidentBadges';
 import { TimelineTab } from './TimelineTab';
 import { MetricsTab } from './MetricsTab';
 import { RemediationLogTab } from './RemediationLogTab';
+import { api } from '@/lib/api';
 
 interface IncidentDrawerProps {
-  incident: IncidentDetail;
-  open: boolean;
-  onClose: () => void;
+  incident:    IncidentDetail;
+  open:        boolean;
+  onClose:     () => void;
+  onResolved?: () => void;
 }
 
-export function IncidentDrawer({ incident, open, onClose }: IncidentDrawerProps) {
-  const [activeTab, setActiveTab] = useState<'timeline' | 'metrics' | 'remediation'>('timeline');
+export function IncidentDrawer({ incident, open, onClose, onResolved }: IncidentDrawerProps) {
+  const [activeTab, setActiveTab]   = useState<'timeline' | 'metrics' | 'remediation'>('timeline');
+  const [resolving, setResolving]   = useState(false);
+  const [resolveErr, setResolveErr] = useState('');
 
   if (!open) return null;
 
+  const canResolve = incident.status === 'OPEN' || incident.status === 'ESCALATED' || incident.status === 'ERROR';
+
+  const handleResolve = async () => {
+    setResolving(true);
+    setResolveErr('');
+    try {
+      await api.resolveIncident(incident.incidentId);
+      onResolved?.();
+      onClose();
+    } catch (err) {
+      setResolveErr(err instanceof Error ? err.message : 'Failed to resolve incident.');
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const tabs = [
-    { id: 'timeline' as const, label: 'Timeline' },
-    { id: 'metrics' as const, label: 'Metrics' },
+    { id: 'timeline' as const,    label: 'Timeline' },
+    { id: 'metrics' as const,     label: 'Metrics' },
     { id: 'remediation' as const, label: 'Remediation Log' },
   ];
 
@@ -61,24 +81,37 @@ export function IncidentDrawer({ incident, open, onClose }: IncidentDrawerProps)
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
-          {activeTab === 'timeline' && <TimelineTab timeline={incident.timeline} />}
-          {activeTab === 'metrics' && <MetricsTab incident={incident} />}
+          {activeTab === 'timeline'    && <TimelineTab timeline={incident.timeline} />}
+          {activeTab === 'metrics'     && <MetricsTab incident={incident} />}
           {activeTab === 'remediation' && <RemediationLogTab incident={incident} />}
         </div>
 
-        {/* Manual Override */}
-        {incident.status === 'IN_PROGRESS' && (
+        {/* Footer — Human-Assisted Resolution */}
+        {canResolve && (
           <div className="p-4 border-t border-border">
-            <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
-              <p className="text-sm text-warning font-medium mb-3">⚠ Awaiting Manual Approval</p>
-              <div className="flex gap-2">
-                <button className="flex-1 py-2 rounded-lg bg-success text-success-foreground text-sm font-medium hover:opacity-90">
-                  ✓ Approve Remediation
-                </button>
-                <button className="flex-1 py-2 rounded-lg border border-destructive text-destructive text-sm font-medium hover:bg-destructive/10">
-                  ✕ Reject & Escalate
-                </button>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">Human-Assisted Resolution</span>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Mark this incident as resolved after manual intervention. This records it as a
+                human-assisted resolution in the audit log.
+              </p>
+              {resolveErr && (
+                <p className="text-xs text-destructive">{resolveErr}</p>
+              )}
+              <button
+                onClick={handleResolve}
+                disabled={resolving}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-success/90 hover:bg-success text-white text-sm font-medium transition-colors disabled:opacity-60"
+              >
+                {resolving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Resolving…</>
+                ) : (
+                  <><CheckCircle2 className="h-4 w-4" /> Mark as Resolved</>
+                )}
+              </button>
             </div>
           </div>
         )}

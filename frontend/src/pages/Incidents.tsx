@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { useIncidents } from '@/hooks/use-incidents';
+import { useQueryClient } from '@tanstack/react-query';
 import { IncidentTable } from '@/components/incidents/IncidentTable';
 import { IncidentDrawer } from '@/components/incidents/IncidentDrawer';
 import type { Incident } from '@/lib/types';
@@ -11,6 +12,7 @@ const ITEMS_PER_PAGE = 25;
 
 const IncidentsPage = () => {
   const { statusFilter, typeFilter, searchQuery, setStatusFilter, setTypeFilter, setSearchQuery, selectedIncident, isDrawerOpen, openDrawer, closeDrawer } = useStore();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
 
   // Pass statusFilter to the API for server-side filtering; type + search are client-side
@@ -126,7 +128,12 @@ const IncidentsPage = () => {
       )}
 
       {selectedIncident && (
-        <IncidentDrawer incident={selectedIncident} open={isDrawerOpen} onClose={closeDrawer} />
+        <IncidentDrawer
+          incident={selectedIncident}
+          open={isDrawerOpen}
+          onClose={closeDrawer}
+          onResolved={() => queryClient.invalidateQueries({ queryKey: ['incidents'] })}
+        />
       )}
     </div>
   );

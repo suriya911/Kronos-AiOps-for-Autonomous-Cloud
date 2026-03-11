@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import statistics
 import uuid
@@ -65,6 +66,7 @@ CORS = {
 METHOD_MAP: dict[str | None, str] = {
     "AUTO_REMEDIATED": "AUTO",
     "HUMAN_REQUIRED":  "ESCALATED",
+    "MANUALLY_CLOSED": "MANUAL",
     None:              "MANUAL",
 }
 
@@ -127,6 +129,11 @@ def handler(event: dict, context) -> dict:
 
         if method == "PATCH":
             body = json.loads(event.get("body") or "{}")
+
+            # /incidents/{id}  → manual resolve
+            m = re.match(r"^/incidents/([^/]+)$", path)
+            if m:
+                return _resolve_incident(m.group(1), body)
 
             if path == "/settings/guardrails":
                 return _save_guardrails(body)
@@ -591,6 +598,30 @@ def _get_metrics(qs: dict) -> dict:
     except ClientError as exc:
         logger.warning(json.dumps({"message": "cloudwatch_fetch_failed", "error": str(exc)}))
 
+    # If CW returned no data (no real EC2 instances), generate simulated demo data
+    all_empty = all(len(v) == 0 for v in cw_data.values())
+    if all_empty:
+        import math as _math
+        n_points = min(hours * 2, 48) if hours <= 24 else hours // 3
+        n_points = max(n_points, 12)
+        sim_configs = {
+            "cpu":     {"base": 32.0, "amp": 28.0, "noise": 4.0},
+            "memory":  {"base": 48.0, "amp": 18.0, "noise": 3.0},
+            "disk":    {"base": 38.0, "amp": 10.0, "noise": 1.5},
+            "latency": {"base": 80.0, "amp": 60.0, "noise": 12.0},
+        }
+        interval_s = int(hours * 3600 / n_points)
+        for key, cfg in sim_configs.items():
+            pts = []
+            for i in range(n_points):
+                t = start_time + timedelta(seconds=i * interval_s)
+                # Sine wave + random noise for realistic look
+                wave  = cfg["amp"] * (0.5 + 0.5 * _math.sin(i / n_points * 2 * _math.pi * 2 - _math.pi / 2))
+                noise = random.uniform(-cfg["noise"], cfg["noise"])
+                val   = round(max(0.0, cfg["base"] + wave + noise), 2)
+                pts.append({"ts": t.strftime("%Y-%m-%dT%H:%M:%SZ"), "value": val})
+            cw_data[key] = pts
+
     def _metric_shape(key: str, unit: str, threshold: float | None) -> dict:
         pts = cw_data.get(key, [])
         vals = [p["value"] for p in pts]
@@ -603,6 +634,7 @@ def _get_metrics(qs: dict) -> dict:
             "threshold":     threshold,
             "dataPoints":    pts,
             "dataAvailable": bool(pts),
+            "isSimulated":   all_empty,
         }
 
     result = {
@@ -793,6 +825,81 @@ def _save_thresholds(body: dict) -> dict:
 
     return _ok({"saved": True, "zScoreThreshold": z_score, "ewmaAlpha": ewma_alpha,
                 "minDataPoints": min_pts, "version": version})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PATCH /incidents/{id}  — manual resolution
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _resolve_incident(incident_id: str, body: dict) -> dict:
+    """
+    Allow a human operator to mark an OPEN or ESCALATED incident as RESOLVED.
+    Sets status=RESOLVED, method=MANUALLY_CLOSED, resolvedAt=now, computes MTTR.
+    """
+    table = _dynamo.Table(INCIDENTS_TABLE)
+    resp  = table.get_item(Key={"incidentId": incident_id})
+    item  = resp.get("Item")
+    if not item:
+        return _err("Incident not found", 404)
+
+    item = _coerce(item)
+    current_status = item.get("status", "OPEN")
+
+    # Only allow resolving open or escalated incidents
+    if current_status not in ("OPEN", "ESCALATED", "ERROR"):
+        return _err(f"Incident is already {current_status} and cannot be manually resolved.", 409)
+
+    now         = _utcnow()
+    resolved_ts = _iso(now) if hasattr(now, 'strftime') else now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    detected_ts = item.get("detectedAt")
+    notes       = body.get("notes", "")
+
+    # Compute MTTR in milliseconds
+    mttr_ms: int | None = None
+    if detected_ts:
+        t1 = _parse_iso(detected_ts)
+        if t1:
+            mttr_ms = int((now - t1).total_seconds() * 1000)
+
+    update_expr = (
+        "SET #st = :st, #method = :method, resolvedAt = :ra"
+        + (", mttr = :mttr" if mttr_ms is not None else "")
+        + (", resolvedNotes = :notes" if notes else "")
+    )
+    expr_names  = {"#st": "status", "#method": "method"}
+    expr_values: dict = {
+        ":st":     "RESOLVED",
+        ":method": "MANUALLY_CLOSED",
+        ":ra":     now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    if mttr_ms is not None:
+        expr_values[":mttr"] = Decimal(str(mttr_ms))
+    if notes:
+        expr_values[":notes"] = notes
+
+    table.update_item(
+        Key={"incidentId": incident_id},
+        UpdateExpression=update_expr,
+        ExpressionAttributeNames=expr_names,
+        ExpressionAttributeValues=expr_values,
+    )
+
+    logger.info(json.dumps({
+        "message":    "incident_manually_resolved",
+        "incidentId": incident_id,
+        "mttr_ms":    mttr_ms,
+    }))
+
+    return _ok({
+        "resolved":   True,
+        "incidentId": incident_id,
+        "resolvedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "mttr_ms":    mttr_ms,
+    })
+
+
+def _iso(dt) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
