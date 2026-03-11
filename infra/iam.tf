@@ -147,6 +147,16 @@ data "aws_iam_policy_document" "lambda_permissions" {
       "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-lambda-dlq",
     ]
   }
+
+  # Lambda invoke — api_handler triggers anomaly_detector for live demo
+  statement {
+    sid     = "InvokeAnomalyDetector"
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-anomaly-detector",
+    ]
+  }
 }
 
 resource "aws_iam_policy" "lambda_permissions" {

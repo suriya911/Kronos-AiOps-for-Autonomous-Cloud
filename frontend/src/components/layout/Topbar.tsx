@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useStore } from '@/lib/store';
@@ -14,6 +15,12 @@ export function Topbar() {
   const { pathname } = useLocation();
   const wsStatus = useStore((s) => s.wsStatus);
   const title = pageTitles[pathname] || 'Dashboard';
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 h-14 border-b border-border bg-background/80 backdrop-blur-sm flex items-center justify-between px-6">
@@ -30,7 +37,7 @@ export function Topbar() {
           {wsStatus === 'CONNECTED' ? 'System Operational' : 'Connecting...'}
         </div>
         <span className="text-xs font-mono text-muted-foreground">
-          {format(new Date(), 'MMM dd, HH:mm:ss')}
+          {format(now, 'MMM dd, HH:mm:ss')}
         </span>
       </div>
     </header>
