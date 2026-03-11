@@ -19,6 +19,7 @@ variable "environment" {
 variable "sns_alert_email" {
   description = "Email address to receive incident escalation alerts (you'll get a confirmation email)"
   type        = string
+  default     = ""
 }
 
 variable "lambda_timeout" {
