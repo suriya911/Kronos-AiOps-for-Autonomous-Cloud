@@ -42,41 +42,43 @@ export function IncidentTable({ incidents, onRowClick, compact }: IncidentTableP
           </thead>
           <tbody>
             {items.map((inc) => {
-              const needsAction = inc.severity === 'CRITICAL' && (inc.status === 'OPEN' || inc.status === 'ESCALATED');
+              const needsAction =
+                inc.severity === 'CRITICAL' &&
+                (inc.status === 'OPEN' || inc.status === 'ESCALATED');
               return (
-              <tr
-                key={inc.incidentId}
-                onClick={() => onRowClick(inc)}
-                className={`border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors slide-in-row ${needsAction ? 'bg-destructive/5' : ''}`}
-              >
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    <StatusBadge status={inc.status} />
-                    {needsAction && <ActionRequiredBadge />}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-accent text-foreground">
-                    {inc.type}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                  {inc.incidentId.substring(0, 14)}…
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs" title={inc.detectedAt}>
-                  {formatDistanceToNow(new Date(inc.detectedAt), { addSuffix: true })}
-                </td>
-                {!compact && (
-                  <td className={`px-4 py-3 font-mono text-xs ${
-                    inc.mttr && inc.mttr > 120 ? 'text-destructive' : 'text-foreground'
-                  }`}>
-                    {inc.mttr ? `${inc.mttr}s` : '—'}
+                <tr
+                  key={inc.incidentId}
+                  onClick={() => onRowClick(inc)}
+                  className={`border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors slide-in-row${needsAction ? ' bg-destructive/5' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      <StatusBadge status={inc.status} />
+                      {needsAction && <ActionRequiredBadge />}
+                    </div>
                   </td>
-                )}
-                <td className="px-4 py-3">
-                  <MethodBadge method={inc.method} />
-                </td>
-              </tr>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-accent text-foreground">
+                      {inc.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {inc.incidentId.substring(0, 14)}…
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs" title={inc.detectedAt}>
+                    {formatDistanceToNow(new Date(inc.detectedAt), { addSuffix: true })}
+                  </td>
+                  {!compact && (
+                    <td className={`px-4 py-3 font-mono text-xs ${
+                      inc.mttr && inc.mttr > 120 ? 'text-destructive' : 'text-foreground'
+                    }`}>
+                      {inc.mttr ? `${inc.mttr}s` : '—'}
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <MethodBadge method={inc.method} />
+                  </td>
+                </tr>
               );
             })}
           </tbody>
