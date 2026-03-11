@@ -10,9 +10,10 @@ const AUTO_ACTIONS = new Set([
 ]);
 
 const statusColors: Record<string, string> = {
-  SUCCESS: 'text-success bg-success/20',
-  FAILED:  'text-destructive bg-destructive/20',
-  SKIPPED: 'text-muted-foreground bg-muted',
+  SUCCESS:   'text-success bg-success/20',
+  FAILED:    'text-destructive bg-destructive/20',
+  SKIPPED:   'text-muted-foreground bg-muted',
+  SIMULATED: 'text-primary bg-primary/10',
 };
 
 type Tab = 'autonomous' | 'human';
@@ -23,8 +24,9 @@ const RemediationsPage = () => {
   const remediations = data?.remediations ?? [];
 
   const { autonomous, humanAssisted } = useMemo(() => {
-    const autonomous    = remediations.filter((r) => AUTO_ACTIONS.has(r.actionType) && r.status === 'SUCCESS');
-    const humanAssisted = remediations.filter((r) => !AUTO_ACTIONS.has(r.actionType) || r.status !== 'SUCCESS');
+    // Classify by action type — SSM-driven actions are autonomous regardless of status
+    const autonomous    = remediations.filter((r) => AUTO_ACTIONS.has(r.actionType));
+    const humanAssisted = remediations.filter((r) => !AUTO_ACTIONS.has(r.actionType));
     return { autonomous, humanAssisted };
   }, [remediations]);
 
