@@ -210,6 +210,20 @@ export const api = {
       body:   JSON.stringify(thresholds),
     });
   },
+
+  async triggerDemo(type: string, severity: string): Promise<{ triggered: boolean; message: string; alarmName: string }> {
+    if (USE_MOCK) {
+      return {
+        triggered: true,
+        message:   `Mock demo triggered: ${severity} ${type} incident. It will appear on the dashboard shortly.`,
+        alarmName: `aiops-demo-${type.toLowerCase()}`,
+      };
+    }
+    return apiFetch('/demo/trigger', {
+      method: 'POST',
+      body:   JSON.stringify({ type, severity }),
+    });
+  },
 };
 
 // ─── WebSocketManager ─────────────────────────────────────────────────────────

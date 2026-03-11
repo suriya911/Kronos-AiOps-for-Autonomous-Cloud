@@ -21,11 +21,12 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="h-14 flex items-center px-4 border-b border-border">
-        <span className="text-primary font-bold text-xl tracking-tight">
-          {sidebarCollapsed ? 'K' : 'KRONOS'}
-        </span>
+        <img src="/kronos-logo.svg" alt="Kronos" className="h-7 w-7 shrink-0" />
         {!sidebarCollapsed && (
-          <span className="ml-2 text-xs text-muted-foreground">AIOps Platform</span>
+          <>
+            <span className="ml-2 text-primary font-bold text-xl tracking-tight">KRONOS</span>
+            <span className="ml-2 text-xs text-muted-foreground">AIOps Platform</span>
+          </>
         )}
       </div>
 

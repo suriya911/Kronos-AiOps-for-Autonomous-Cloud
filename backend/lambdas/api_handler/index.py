@@ -26,6 +26,7 @@ import math
 import os
 import re
 import statistics
+import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
@@ -38,23 +39,25 @@ logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
 # ─── AWS clients ──────────────────────────────────────────────────────────────
-_dynamo = boto3.resource("dynamodb")
-_cw     = boto3.client("cloudwatch")
-_ssm    = boto3.client("ssm")
+_dynamo  = boto3.resource("dynamodb")
+_cw      = boto3.client("cloudwatch")
+_ssm     = boto3.client("ssm")
+_lambda  = boto3.client("lambda")
 
 # ─── Environment ──────────────────────────────────────────────────────────────
-INCIDENTS_TABLE      = os.environ["INCIDENTS_TABLE"]
-REMEDIATIONS_TABLE   = os.environ["REMEDIATIONS_TABLE"]
-METRICS_CACHE_TABLE  = os.environ["METRICS_CACHE_TABLE"]
-SSM_GUARDRAILS_PARAM = os.environ["SSM_GUARDRAILS_PARAM"]
-SSM_THRESHOLDS_PARAM = os.environ["SSM_THRESHOLDS_PARAM"]
-ENVIRONMENT          = os.environ.get("ENVIRONMENT", "dev")
+INCIDENTS_TABLE       = os.environ["INCIDENTS_TABLE"]
+REMEDIATIONS_TABLE    = os.environ["REMEDIATIONS_TABLE"]
+METRICS_CACHE_TABLE   = os.environ["METRICS_CACHE_TABLE"]
+SSM_GUARDRAILS_PARAM  = os.environ["SSM_GUARDRAILS_PARAM"]
+SSM_THRESHOLDS_PARAM  = os.environ["SSM_THRESHOLDS_PARAM"]
+ANOMALY_DETECTOR_ARN  = os.environ.get("ANOMALY_DETECTOR_ARN", "")
+ENVIRONMENT           = os.environ.get("ENVIRONMENT", "dev")
 
 # ─── CORS headers returned on every response ──────────────────────────────────
 CORS = {
     "Access-Control-Allow-Origin":  "*",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    "Access-Control-Allow-Methods": "GET,PATCH,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,PATCH,POST,OPTIONS",
     "Content-Type":                 "application/json",
 }
 
@@ -130,6 +133,14 @@ def handler(event: dict, context) -> dict:
 
             if path == "/settings/thresholds":
                 return _save_thresholds(body)
+
+            return _err(f"Unknown path: {path}", 404)
+
+        if method == "POST":
+            body = json.loads(event.get("body") or "{}")
+
+            if path == "/demo/trigger":
+                return _trigger_demo(body)
 
             return _err(f"Unknown path: {path}", 404)
 
@@ -782,3 +793,141 @@ def _save_thresholds(body: dict) -> dict:
 
     return _ok({"saved": True, "zScoreThreshold": z_score, "ewmaAlpha": ewma_alpha,
                 "minDataPoints": min_pts, "version": version})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# POST /demo/trigger
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Alarm configs keyed by incident type
+_DEMO_ALARMS: dict[str, dict] = {
+    "CPU": {
+        "alarmName":   "aiops-high-cpu-utilization",
+        "metricName":  "CPUUtilization",
+        "namespace":   "AWS/EC2",
+        "metricValue": 92.7,
+        "description": "EC2 CPU utilization spiked above 90% threshold",
+    },
+    "MEMORY": {
+        "alarmName":   "aiops-high-memory-utilization",
+        "metricName":  "mem_used_percent",
+        "namespace":   "CWAgent",
+        "metricValue": 94.1,
+        "description": "Memory utilization exceeded 90% — possible memory leak",
+    },
+    "DISK": {
+        "alarmName":   "aiops-high-disk-utilization",
+        "metricName":  "disk_used_percent",
+        "namespace":   "CWAgent",
+        "metricValue": 95.3,
+        "description": "Disk usage critical — partition nearly full",
+    },
+    "LATENCY": {
+        "alarmName":   "aiops-high-api-latency",
+        "metricName":  "TargetResponseTime",
+        "namespace":   "AWS/ApplicationELB",
+        "metricValue": 620.5,
+        "description": "API p95 latency exceeded 500ms threshold",
+    },
+}
+
+_SEVERITY_Z: dict[str, float] = {
+    "CRITICAL": 5.2,
+    "WARNING":  3.4,
+}
+
+
+def _trigger_demo(body: dict) -> dict:
+    """
+    Build a synthetic CloudWatch Alarm event and invoke the anomaly_detector Lambda
+    to create a real incident that flows through the full Step Functions workflow.
+    """
+    inc_type = body.get("type", "CPU").upper()
+    severity = body.get("severity", "CRITICAL").upper()
+
+    if inc_type not in _DEMO_ALARMS:
+        return _err(f"Unknown type: {inc_type}. Must be one of: {list(_DEMO_ALARMS.keys())}", 400)
+    if severity not in _SEVERITY_Z:
+        return _err(f"Unknown severity: {severity}. Must be CRITICAL or WARNING.", 400)
+
+    if not ANOMALY_DETECTOR_ARN:
+        return _err("ANOMALY_DETECTOR_ARN env var not set — cannot trigger demo", 503)
+
+    alarm = _DEMO_ALARMS[inc_type]
+    now   = _utcnow()
+
+    # Build a CloudWatch Alarm state-change event (same shape as real EventBridge events)
+    event_payload = {
+        "version":     "0",
+        "id":          str(uuid.uuid4()),
+        "source":      "aws.cloudwatch",
+        "account":     "807430513014",
+        "time":        now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "region":      "us-east-1",
+        "detail-type": "CloudWatch Alarm State Change",
+        "detail": {
+            "alarmName":   alarm["alarmName"],
+            "description": alarm["description"],
+            "state": {
+                "value":     "ALARM",
+                "reason":    f"Demo trigger — {severity} severity {inc_type} incident",
+                "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S.000+0000"),
+            },
+            "previousState": {
+                "value":     "OK",
+                "timestamp": (now - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S.000+0000"),
+            },
+            "configuration": {
+                "metrics": [
+                    {
+                        "id":         "m1",
+                        "metricStat": {
+                            "metric": {
+                                "namespace":  alarm["namespace"],
+                                "name":       alarm["metricName"],
+                                "dimensions": {},
+                            },
+                            "period": 300,
+                            "stat":   "Average",
+                        },
+                    }
+                ]
+            },
+        },
+        # Extra hints for anomaly_detector to use when creating the incident
+        "_demo": {
+            "metricValue": alarm["metricValue"],
+            "zScore":      _SEVERITY_Z[severity],
+            "severity":    severity,
+        },
+    }
+
+    # Invoke anomaly_detector asynchronously (Event invocation type)
+    try:
+        _lambda.invoke(
+            FunctionName=ANOMALY_DETECTOR_ARN,
+            InvocationType="Event",   # async — no wait for response
+            Payload=json.dumps(event_payload).encode(),
+        )
+    except ClientError as exc:
+        logger.error(json.dumps({"message": "demo_trigger_failed", "error": str(exc)}))
+        return _err(f"Failed to invoke anomaly detector: {exc}", 502)
+
+    logger.info(json.dumps({
+        "message":  "demo_triggered",
+        "type":     inc_type,
+        "severity": severity,
+        "alarm":    alarm["alarmName"],
+    }))
+
+    return _ok({
+        "triggered":   True,
+        "type":        inc_type,
+        "severity":    severity,
+        "alarmName":   alarm["alarmName"],
+        "message":     (
+            f"Demo incident triggered: {severity} {inc_type} alarm fired. "
+            "The anomaly detector will process it and the incident will appear "
+            "on the dashboard within ~10 seconds."
+        ),
+    })

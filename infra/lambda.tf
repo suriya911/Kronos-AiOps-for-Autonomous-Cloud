@@ -362,6 +362,7 @@ resource "aws_lambda_function" "api_handler" {
       METRICS_CACHE_TABLE  = aws_dynamodb_table.metrics_cache.name
       SSM_GUARDRAILS_PARAM = aws_ssm_parameter.guardrails.name
       SSM_THRESHOLDS_PARAM = aws_ssm_parameter.thresholds.name
+      ANOMALY_DETECTOR_ARN = aws_lambda_function.anomaly_detector.arn
       ENVIRONMENT          = var.environment
       LOG_LEVEL            = "INFO"
     }
@@ -372,6 +373,69 @@ resource "aws_lambda_function" "api_handler" {
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy_attachment.lambda_permissions,
   ]
+}
+
+# ─── 8. incident_generator ────────────────────────────────────────────────────
+# EventBridge scheduled trigger (rate 3 days).
+# Writes 2–4 synthetic incidents to DynamoDB to keep the dashboard populated.
+
+data "archive_file" "incident_generator" {
+  type        = "zip"
+  source_dir  = "${path.module}/../backend/lambdas/incident_generator"
+  output_path = "${path.module}/../.archives/incident_generator.zip"
+}
+
+resource "aws_cloudwatch_log_group" "lambda_incident_generator" {
+  name              = "/aws/lambda/${var.project_name}-incident-generator"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "incident_generator" {
+  function_name    = "${var.project_name}-incident-generator"
+  description      = "Generates realistic synthetic incidents every 3 days to keep the AIOps dashboard populated for demos"
+  filename         = data.archive_file.incident_generator.output_path
+  source_code_hash = data.archive_file.incident_generator.output_base64sha256
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  role             = aws_iam_role.lambda_execution.arn
+  timeout          = 30
+  memory_size      = var.lambda_memory_mb
+
+  environment {
+    variables = {
+      INCIDENTS_TABLE    = aws_dynamodb_table.incidents.name
+      REMEDIATIONS_TABLE = aws_dynamodb_table.remediations.name
+      ENVIRONMENT        = var.environment
+      LOG_LEVEL          = "INFO"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_incident_generator,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_permissions,
+  ]
+}
+
+# EventBridge rule — fires every 3 days
+resource "aws_cloudwatch_event_rule" "incident_generator" {
+  name                = "${var.project_name}-incident-generator"
+  description         = "Triggers incident_generator Lambda every 3 days"
+  schedule_expression = "rate(3 days)"
+}
+
+resource "aws_cloudwatch_event_target" "incident_generator" {
+  rule      = aws_cloudwatch_event_rule.incident_generator.name
+  target_id = "incident-generator-lambda"
+  arn       = aws_lambda_function.incident_generator.arn
+}
+
+resource "aws_lambda_permission" "incident_generator_eventbridge" {
+  statement_id  = "AllowEventBridgeIncidentGenerator"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.incident_generator.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.incident_generator.arn
 }
 
 # ─── DynamoDB Stream → ws_broadcast (Phase 4 trigger) ────────────────────────
